@@ -7,30 +7,32 @@ const supabase = createClient(
 )
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { filename, content } = req.body
+  try {
+    const { filename, content } = req.body
 
-  console.log("📥 Eingehender Request:", { filename, content })
+    console.log("📥 Eingehender Request:", { filename, content })
 
-  if (!filename || !content) {
-    console.error("❌ Fehlende Daten")
-    return res.status(400).json({ error: 'Missing filename or content' })
-  }
-
-  const upload = await supabase.storage.from('branchen-doks').upload(
-    `archiv/${filename}`,
-    Buffer.from(content, 'utf-8'),
-    {
-      contentType: 'text/plain',
-      upsert: true
+    if (!filename || !content) {
+      return res.status(400).json({ error: 'Missing filename or content' })
     }
-  )
 
-  console.log("📤 Upload-Antwort:", upload)
+    const upload = await supabase.storage.from('branchen-doks').upload(
+      `archiv/${filename}`,
+      Buffer.from(content, 'utf-8'),
+      {
+        contentType: 'text/plain',
+        upsert: true
+      }
+    )
 
-  if (upload.error) {
-    console.error("❌ Upload-Fehler:", upload.error.message)
-    return res.status(500).json({ error: upload.error.message })
+    if (upload.error) {
+      console.error("❌ Upload error:", upload.error.message)
+      return res.status(500).json({ error: upload.error.message })
+    }
+
+    return res.status(200).json({ status: 'ok', filename })
+  } catch (err: any) {
+    console.error("❌ Unerwarteter Fehler:", err.message)
+    return res.status(500).json({ error: err.message || 'Unknown error' })
   }
-
-  return res.status(200).json({ status: 'ok', filename })
 }
