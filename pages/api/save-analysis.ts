@@ -14,10 +14,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const { error } = await supabase.storage.from('branchen-doks').upload(
-    `archiv/${filename}`,
-    new Blob([content], { type: 'text/plain' }),
-    { upsert: true, contentType: 'text/plain' }
-  )
+  `archiv/${filename}`,
+  Buffer.from(content, 'utf-8'),
+  {
+    contentType: 'text/plain',
+    upsert: true
+  }
+)
 
   if (error) {
     return res.status(500).json({ error: error.message })
