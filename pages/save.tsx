@@ -1,41 +1,79 @@
-import type { NextApiRequest, NextApiResponse } from 'next'
-import { createClient } from '@supabase/supabase-js'
+import { useState } from 'react'
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+export default function SavePage() {
+  const [filename, setFilename] = useState('')
+  const [content, setContent] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [status, setStatus] = useState<string | null>(null)
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Only POST allowed' })
-  }
-
-  try {
-    const { filename, content } = req.body
-
-    console.log("📥 Request Body:", req.body)
-
+  const handleSave = async () => {
     if (!filename || !content) {
-      console.error("❌ Fehler: Missing filename or content")
-      return res.status(400).json({ error: 'Missing filename or content' })
+      setStatus('❗ Bitte Dateiname & Inhalt ausfüllen.')
+      return
     }
 
-    const upload = await supabase.storage
-      .from('branchen-doks')
-      .upload(`archiv/${filename}`, Buffer.from(content, 'utf-8'), {
-        contentType: 'text/plain',
-        upsert: true,
-      })
+    setLoading(true)
+    setStatus(null)
 
-    if (upload.error) {
-      console.error("❌ Upload error:", upload.error.message)
-      return res.status(500).json({ error: upload.error.message })
+    const res = await fetch('/api/save-analysis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename, content }),
+    })
+
+    const result = await res.json()
+    setLoading(false)
+
+    if (res.ok) {
+      setStatus(`✅ Gespeichert als: ${result.filename}`)
+      setFilename('')
+      setContent('')
+    } else {
+      setStatus(`❌ Fehler: ${result.error || 'Unbekannter Fehler'}`)
     }
-
-    return res.status(200).json({ status: 'ok', filename })
-  } catch (err: any) {
-    console.error("❌ Unerwarteter Fehler:", err.message)
-    return res.status(500).json({ error: err.message || 'Unbekannter Fehler' })
   }
+
+  return (
+    <div style={{ maxWidth: 800, margin: '3rem auto', fontFamily: 'sans-serif' }}>
+      <h1>🧠 Branchenprofi – Analyse speichern</h1>
+
+      <label>📄 Dateiname (.txt):</label>
+      <input
+        value={filename}
+        onChange={(e) => setFilename(e.target.value)}
+        placeholder="z. B. maschinenbau_dach_2024.txt"
+        style={{ width: '100%', padding: '12px', fontSize: '1rem', marginBottom: '1rem' }}
+      />
+
+      <label>📝 Analyse-Inhalt:</label>
+      <textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        rows={10}
+        placeholder="Hier den Analyse-Text einfügen…"
+        style={{ width: '100%', padding: '12px', fontSize: '1rem', fontFamily: 'monospace' }}
+      />
+
+      <button
+        onClick={handleSave}
+        disabled={loading}
+        style={{
+          marginTop: '2rem',
+          padding: '12px 24px',
+          fontSize: '1rem',
+          backgroundColor: '#0070f3',
+          color: '#fff',
+          border: 'none',
+          borderRadius: 4,
+          cursor: 'pointer',
+        }}
+      >
+        {loading ? '💾 Speichern…' : '💾 Speichern'}
+      </button>
+
+      {status && (
+        <p style={{ marginTop: '1rem', color: status.startsWith('✅') ? 'green' : 'red' }}>{status}</p>
+      )}
+    </div>
+  )
 }
