@@ -1,93 +1,41 @@
-import { useState } from 'react'
+import type { NextApiRequest, NextApiResponse } from 'next'
+import { createClient } from '@supabase/supabase-js'
 
-export default function SavePage() {
-  const [filename, setFilename] = useState('')
-  const [content, setContent] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [status, setStatus] = useState<string | null>(null)
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
-  const handleSave = async () => {
-    if (!filename || !content) {
-      setStatus('❗ Bitte Dateiname & Inhalt ausfüllen.')
-      return
-    }
-
-    setLoading(true)
-    setStatus(null)
-
-    const res = await fetch('/api/save-analysis', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename, content }),
-    })
-
-    const result = await res.json()
-    setLoading(false)
-
-    if (res.ok) {
-      setStatus(`✅ Gespeichert als: ${result.filename}`)
-      setFilename('')
-      setContent('')
-    } else {
-      setStatus(`❌ Fehler: ${result.error || 'Unbekannt'}`)
-    }
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Only POST allowed' })
   }
 
-  return (
-    <div style={{ maxWidth: 800, margin: '3rem auto', fontFamily: 'sans-serif', padding: '1rem' }}>
-      <h1 style={{ fontSize: '2rem' }}>🧠 Branchenprofi – Analyse speichern</h1>
+  try {
+    const { filename, content } = req.body
 
-      <label style={{ display: 'block', marginTop: '2rem' }}>📄 Dateiname (.txt)</label>
-      <input
-        value={filename}
-        onChange={(e) => setFilename(e.target.value)}
-        placeholder="z. B. maschinenbau_dach_2024.txt"
-        style={{
-          width: '100%',
-          padding: '12px',
-          fontSize: '1rem',
-          borderRadius: 4,
-          border: '1px solid #ccc',
-          marginBottom: '1rem',
-        }}
-      />
+    console.log("📥 Request Body:", req.body)
 
-      <label>📝 Analyse-Inhalt</label>
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        rows={10}
-        placeholder="Hier den Analyse-Text einfügen…"
-        style={{
-          width: '100%',
-          padding: '12px',
-          fontSize: '1rem',
-          fontFamily: 'monospace',
-          borderRadius: 4,
-          border: '1px solid #ccc',
-        }}
-      />
+    if (!filename || !content) {
+      console.error("❌ Fehler: Missing filename or content")
+      return res.status(400).json({ error: 'Missing filename or content' })
+    }
 
-      <button
-        onClick={handleSave}
-        disabled={loading}
-        style={{
-          marginTop: '2rem',
-          padding: '12px 24px',
-          fontSize: '1rem',
-          backgroundColor: '#0070f3',
-          color: '#fff',
-          border: 'none',
-          borderRadius: 4,
-          cursor: 'pointer',
-        }}
-      >
-        {loading ? '💾 Speichern…' : '💾 Speichern'}
-      </button>
+    const upload = await supabase.storage
+      .from('branchen-doks')
+      .upload(`archiv/${filename}`, Buffer.from(content, 'utf-8'), {
+        contentType: 'text/plain',
+        upsert: true,
+      })
 
-      {status && (
-        <p style={{ marginTop: '1rem', color: status.startsWith('✅') ? 'green' : 'red' }}>{status}</p>
-      )}
-    </div>
-  )
+    if (upload.error) {
+      console.error("❌ Upload error:", upload.error.message)
+      return res.status(500).json({ error: upload.error.message })
+    }
+
+    return res.status(200).json({ status: 'ok', filename })
+  } catch (err: any) {
+    console.error("❌ Unerwarteter Fehler:", err.message)
+    return res.status(500).json({ error: err.message || 'Unbekannter Fehler' })
+  }
 }
