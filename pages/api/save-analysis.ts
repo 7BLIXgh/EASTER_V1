@@ -9,21 +9,27 @@ const supabase = createClient(
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { filename, content } = req.body
 
+  console.log("📥 Eingehender Request:", { filename, content })
+
   if (!filename || !content) {
+    console.error("❌ Fehlende Daten")
     return res.status(400).json({ error: 'Missing filename or content' })
   }
 
-  const { error } = await supabase.storage.from('branchen-doks').upload(
-  `archiv/${filename}`,
-  Buffer.from(content, 'utf-8'),
-  {
-    contentType: 'text/plain',
-    upsert: true
-  }
-)
+  const upload = await supabase.storage.from('branchen-doks').upload(
+    `archiv/${filename}`,
+    Buffer.from(content, 'utf-8'),
+    {
+      contentType: 'text/plain',
+      upsert: true
+    }
+  )
 
-  if (error) {
-    return res.status(500).json({ error: error.message })
+  console.log("📤 Upload-Antwort:", upload)
+
+  if (upload.error) {
+    console.error("❌ Upload-Fehler:", upload.error.message)
+    return res.status(500).json({ error: upload.error.message })
   }
 
   return res.status(200).json({ status: 'ok', filename })
